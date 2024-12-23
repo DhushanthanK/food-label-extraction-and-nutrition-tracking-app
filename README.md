@@ -13,7 +13,7 @@ This streamlit based web app allows users to upload a food label image and extra
 - **app.py**: Flask backend for handling API requests and managing server-side logic.
 - **ocr.py**: Extracts text using PaddleOCR and then extracts serving size, calories, and nutritional information using Regex and Fuzzy matching.
 - **streamlit.py**: Streamlit front-end for the user interface, allowing users to upload images and view extracted information.
-- **query.sql**: SQL query to create the database and tables for storing user and nutritional information.
+- **database.sql**: SQL query to create the database and tables for storing user and nutritional information.
 
 ## Setup Instructions
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 5. Run SQL Query in MySQL to create database.
 
 ```
-mysql -u <username> -p query.sql
+mysql -u <username> -p database.sql
 ```
 
 6. run the flask back-end.
