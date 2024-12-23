@@ -1,0 +1,13 @@
+Flask
+Flask-Cors
+Flask-SQLAlchemy
+Flask-Bcrypt
+Flask-Migrate
+python-dotenv
+opencv-python
+paddlepaddle
+paddleocr
+rapidfuzz
+pandas
+requests
+streamlit
