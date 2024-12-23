@@ -79,7 +79,7 @@ streamlit run streamlit.py
 
 The dataset used for this project is from Roboflow:
 ```
-dataset link : https://universe.roboflow.com/lizazaza/nutrition-table
+https://universe.roboflow.com/lizazaza/nutrition-table
 ```
 
 ## License
