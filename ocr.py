@@ -1,41 +1,24 @@
-import cv2
-import re
 from paddleocr import PaddleOCR
+import re
+import numpy as np
 from rapidfuzz import fuzz, process
-import pandas as pd
 
-def extract_nutrition_info(img_path):
-    # Initialize OCR model
+def extract_nutrition_info(image):
+    """ocr on image"""
     ocr = PaddleOCR(use_angle_cls=True, lang='en')
+    result = ocr.ocr(np.array(image), cls=True)
 
-    # Load image
-    img = cv2.imread(img_path)
-
-    # Extract text using OCR
-    result = ocr.ocr(img_path, cls=True)
-
-    # Function to preprocess text
-    def preprocess_text(text):
-        """Clean and preprocess text for consistent processing."""
-        return re.sub(r"[^a-zA-Z0-9\s]", "", text.lower())
-
-    # Extract rows based on OCR result bounding box positions
     def extract_row_lines(ocr_output, y_threshold=10):
-        """
-        Extracts row lines from PaddleOCR output based on bounding box positions and thresholds.
-        """
+        """extract info line by line"""
         rows = []
         current_row = []
         row_center = None
-
         for box in ocr_output:
             top_left_y = box[0][0][1]
             bottom_left_y = box[0][3][1]
             cell_center_y = (top_left_y + bottom_left_y) / 2
-
             if row_center is None:
                 row_center = cell_center_y
-
             if abs(row_center - cell_center_y) > y_threshold:
                 if current_row:
                     rows.append(current_row)
@@ -43,103 +26,103 @@ def extract_nutrition_info(img_path):
                 current_row = [box[1][0]]
             else:
                 current_row.append(box[1][0])
-
         if current_row:
             rows.append(current_row)
-
         return rows
 
     ocr_output = result[0]
     rows = extract_row_lines(ocr_output)
 
-    # Keywords for section detection
+    def preprocess_text(text):
+        """lowercase and eliminate spaces"""
+        return re.sub(r"[^a-zA-Z0-9\s]", "", text.lower())
+
     section_keywords = {
-        "serving_info": ["Serving Size", "Servings per container", "Servings per package"],
+        "serving_info": ["Serving Size", "Servings per Container", "Servings per Package"],
         "calorie_info": ["Calories"],
-        "nutrient_table": ["Total Fat", "Saturated Fat", "Trans Fat", "Cholesterol", "Sodium", "Total Carbohydrates", 
-                           "Dietary Fiber", "Total Sugars", "Added Sugars", "Protein", "Vitamin D", "Calcium", "Iron", "Potassium"]
+        "nutrient_table": ["Total Fat", "Saturated Fat","Trans Fat", "Cholesterol", "Sodium", "Total Carbohydrates", "Dietary Fiber", "Total Sugars", "Added Sugars", "Protein", "Vitamin D", "Calcium", "Iron", "Potasium"]
     }
-    
+
     priority_order = ["nutrient_table", "calorie_info", "serving_info"]
 
-    # Fuzzy matching to detect section
     def extract_section_fuzzy(row, threshold=85):
-        """Detect section using fuzzy matching with priority resolution."""
+        """Detect section and categorize using fuzzy matching with priority resolution."""
         row_text = preprocess_text(" ".join(row))
         best_match = None
         best_score = 0
         detected_section = None
 
-        for section in priority_order:
+        for section in priority_order: 
+            """Use priority order to resolve overlaps""" 
             for keyword in section_keywords[section]:
                 score = fuzz.partial_ratio(row_text, preprocess_text(keyword))
                 if score > best_score and score > threshold:
                     best_match = row
                     best_score = score
-                    detected_section = section
+                    detected_section = section 
 
         if best_match:
             return (best_match, detected_section)
         return None
 
-    serving_info = []
-    calorie_info = []
-    nutrient_table = []
-
+    serving_info, calorie_info, nutrient_table = [], [], []
+    
     for row in rows:
         result = extract_section_fuzzy(row)
         if result:
-            if result[1] == "serving_info":
-                serving_info.append(" ".join(result[0]))
-            elif result[1] == "calorie_info":
-                calorie_info.append(" ".join(result[0]))
-            elif result[1] == "nutrient_table":
-                nutrient_table.append(" ".join(result[0]))
+            section = result[1]
+            row_text = " ".join(result[0])
+            if section == "serving_info":
+                serving_info.append(row_text)
+            elif section == "calorie_info":
+                calorie_info.append(row_text)
+            elif section == "nutrient_table":
+                nutrient_table.append(row_text)
 
-    # Parsing general information like Serving Size, Servings per Container, and Calories
     def parse_general_info(text):
+        """Regular expression to extract general info""" 
         patterns = [
-            (r"(serving size[:\s]*([\w\s/()]+))|([\w\s/()]+)\s*per serving|([\w\s/()]+)\s*per unit", "Serving Size"),
-            (r"(servings? per (container|package)[:\s]*(about\s)?(\d+))|((about\s)?(\d+)\s*servings? per (container|package))", "Servings per container"),
-            (r"(calories[:\s]*(\d+))|(\d+)\s*calories per serving", "Calories")
-        ]
-        
+                    (r"(serving size[:\s]*([\w\s/()]+))|([\w\s/()]+)\s*per serving|([\w\s/()]+)\s*per unit", "Serving Size"),
+                    (r"(servings? per (container|package)[:\s]*(about\s)?(\d+))|((about\s)?(\d+)\s*servings? per (container|package))", "Servings per Container"),
+                    (r"(calories[:\s]*(\d+))|(\d+)\s*calories per serving", "Calories")
+                ]
         results = {}
-
         for pattern, category in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 if category == "Serving Size":
                     results[category] = match.group(2) or match.group(3) or match.group(4)
-                elif category == "Servings per container":
+                elif category == "Servings per Container":
                     results[category] = match.group(4) or match.group(7)
                 elif category == "Calories":
                     results[category] = match.group(2) or match.group(3)
-
                 if results[category]:
                     results[category] = results[category].strip().capitalize()
-
                     if category == "Serving Size" and results[category].lower() in ["amount", "per unit"]:
                         del results[category]
-                    elif category == "Servings per container" and results[category].lower() in ["about"]:
+                    elif category == "Servings per Container" and results[category].lower() in ["about"]:
                         del results[category]
         return results
 
-    # Parsing nutrient information
-    amount_regex = re.compile(r"(\d+(\.\d+)?\s*(g|mg|kcal|mcg))")
-    daily_value_regex = re.compile(r"(\d+(\.\d+)?\s*%)")
+    nutrition_info = {}
+    for text in serving_info + calorie_info:
+        nutrition_info.update(parse_general_info(text))
+    
+    """Regular expression to extract amount and daily value with units""" 
+    amount_regex = re.compile(r"(\d+(\.\d+)?\s*(g|mg|kcal|mcg))")  
+    daily_value_regex = re.compile(r"(\d+(\.\d+)?\s*%)") 
 
     def parse_nutrient_line_fuzzy(text, threshold=75):
-        result = {"nutrient": None, "amount": None, "daily_value": None}
-
+        """extrcat nutrition amount and daily value using fuzzy matching.""" 
+        result = {"nutrient": None, "amount": None, "daily_value": None} 
         text = text.replace("Omg", "0mg").replace("Og", "0g").replace("O%", "0%")
-
+        
         match, score, _ = process.extractOne(text, section_keywords['nutrient_table'], scorer=fuzz.partial_ratio)
-        if score >= threshold:
+        if score >= threshold:  
             if "Sugars" in text:
                 if "Added" in text:
-                    if "includes" in text or "included" in text or "in" in text:
-                        result["nutrient"] = None
+                    if "includes" in text or "included" in text:
+                        result["nutrient"] = None  
                     else:
                         result["nutrient"] = "Added Sugars"
                 else:
@@ -161,22 +144,24 @@ def extract_nutrition_info(img_path):
 
     for line in nutrient_table:
         nutrient_info = parse_nutrient_line_fuzzy(line)
-        if nutrient_info["nutrient"]:
+        if nutrient_info["nutrient"]: 
             nutrient_info_dict[nutrient_info["nutrient"]] = nutrient_info
 
-    # Final structured data
-    data = {}
+    data = {
+        "Serving Size": nutrition_info.get("Serving Size"),
+        "Servings per Container": nutrition_info.get("Servings per Container"),
+        "Calories": nutrition_info.get("Calories"),
+    }
 
-    # Process Serving and Calorie info
-    for text in serving_info + calorie_info:
-        result = parse_general_info(text)
-        if result:
-            for key, value in result.items():
-                data[key] = value
-
-    # Add Nutrient Info
     for nutrient in section_keywords["nutrient_table"]:
         data[f"{nutrient} (Amount)"] = nutrient_info_dict.get(nutrient, {}).get("amount")
         data[f"{nutrient} (Daily Value)"] = nutrient_info_dict.get(nutrient, {}).get("daily_value")
 
     return data
+
+# paddlepaddle             3.0.0b1
+# paddleocr                2.9.1
+# torch                    2.0.1
+# torchaudio               2.0.2
+# torchvision              0.15.2
+

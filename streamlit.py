@@ -1,8 +1,10 @@
 import streamlit as st
 import requests
 import pandas as pd
+import plotly.express as px
+import re
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Nutrition Dashboard", page_icon="🍽️",layout="wide")
 
 API_BASE_URL = "http://127.0.0.1:5000/api"
 
@@ -12,23 +14,23 @@ if "email" not in st.session_state:
     st.session_state.email = None
 
 def register_user(email, password):
-    """Handle user registration via API call"""
+    # Handle user registration via API call
     response = requests.post(f"{API_BASE_URL}/register", json={"email": email, "password": password})
     return response.json(), response.status_code
 
 def login_user(email, password):
-    """Handle user login via API call"""
+    # Handle user login via API call
     response = requests.post(f"{API_BASE_URL}/login", json={"email": email, "password": password})
     return response.json(), response.status_code
 
 def upload_document(file):
-    """Handle food label file upload to backend for OCR"""
+    # Handle food label file upload to backend for OCR
     files = {"file": file}
     response = requests.post(f"{API_BASE_URL}/food_labels_db", files=files)
     return response.json(), response.status_code
 
 def fetch_database_entries():
-    """Fetch database entries from the backend"""
+    # Fetch database entries from the backend
     response = requests.get(f"{API_BASE_URL}/food_labels_db")
     if response.status_code == 200:
         return pd.DataFrame(response.json()), response.status_code
@@ -36,11 +38,46 @@ def fetch_database_entries():
         return None, response.status_code 
 
 if not st.session_state.logged_in:
-    tab1, tab2 = st.tabs(["Login", "Register"])
+    tab1, tab2 = st.tabs(["Register", "Login"])
 
     with tab1:
-        st.header("Login")
+        # Register Form
+        st.header("Register 🔐")
+        
+        reg_email = st.text_input("Email", key="reg_email")
+        pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if reg_email:
+            if re.match(pattern, reg_email):
+                st.success("Valid email format")
+            else:
+                reg_email = None
+                st.error("Invalid email format. Please enter a valid email.")
+            
+        reg_password = st.text_input("Password", type="password", key="reg_password")
+        pattern = r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$"
+        if reg_password:
+            if re.match(pattern, reg_password):
+                st.success("Valid password format")
+            else:
+                reg_password = None
+                st.error("Minimum eight characters, at least one letter, one number.")
+
+        if st.button("Register"):
+            result, status = register_user(reg_email, reg_password)
+            if status == 201:
+                st.success(result.get("message", "Registration successful"))
+            else:
+                st.error(result.get("message", "Registration failed"))
+    
+    with tab2:
+        # Login Form
+        st.header("Login 🗝")
         login_email = st.text_input("Email", key="login_email")
+        pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if login_email:
+            if not re.match(pattern, login_email):
+                st.error("Invalid email format. Please enter a valid email.")
+
         login_password = st.text_input("Password", type="password", key="login_password")
 
         if st.button("Login"):
@@ -53,25 +90,36 @@ if not st.session_state.logged_in:
             else:
                 st.error(result.get("message", "Login failed"))
 
-    with tab2:
-        st.header("Register")
-        reg_email = st.text_input("Email", key="reg_email")
-        reg_password = st.text_input("Password", type="password", key="reg_password")
-
-        if st.button("Register"):
-            result, status = register_user(reg_email, reg_password)
-            if status == 201:
-                st.success(result.get("message", "Registration successful"))
-            else:
-                st.error(result.get("message", "Registration failed"))
 else:
-    tab1, tab2, tab3 = st.tabs(["Dashboard", "Upload", "Logout"])
+    # When logged in
+    tab1, tab2, tab3 = st.tabs(["Upload", "Dashboard", "Logout"])
 
     if "nutrition_data" not in st.session_state:
         st.session_state.nutrition_data, st.session_state.fetch_status = fetch_database_entries()
-
     with tab1:
-        st.title("🍽️ Nutrition Dashboard")
+        st.header("📄 Upload a Food Label Image 📝")
+
+        uploaded_file = st.file_uploader("Please upload a Food Label below.", type=["jpg", "png", "pdf"])
+
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
+
+            with st.spinner("Processing the file..."):
+                result, status = upload_document(uploaded_file)
+
+            if status == 200:
+                st.success("File uploaded and processed successfully!") 
+
+                new_data, new_status = fetch_database_entries()
+                if new_status == 200:
+                    st.session_state.nutrition_data = new_data
+                    st.session_state.fetch_status = new_status
+            else:
+                st.error(f"Failed to upload or process the document: {result.get('message', '')}")
+
+    with tab2:
+        st.write("#")
+        st.title("🌾🍀 Nutrition Dashboard 🍴🍇")
 
         data = st.session_state.nutrition_data
         status = st.session_state.fetch_status
@@ -140,29 +188,28 @@ else:
             potassium_dv = latest_entry['potassium_dv']
 
             def get_display_value(value):
-                """Safely return a value, replacing None or empty strings with '0'."""
                 return value if value not in [None, ""] else "0%"
 
             def get_delta_color_least_preferred(value):
-                """Return color based on the least preferred criteria."""
                 if value is None or value.strip() == "":
-                    return "black", "#e0e0e0"  # Default color for text and background
+                    return "black", "#e0e0e0" 
                 numeric_value = float(value.strip('%'))
                 if numeric_value > 20:
-                    return "red", "#ffcccc"  # Red text and light red background
-                return "green", "#ccffcc"  # Green text and light green background
+                    return "red", "#ffcccc"  
+                return "green", "#ccffcc"  
 
             def get_delta_color_most_preferred(value):
-                """Return color based on the most preferred criteria."""
                 if value is None or value.strip() == "":
-                    return "black", "#e0e0e0"  # Default color for text and background
+                    return "black", "#e0e0e0"  
                 numeric_value = float(value.strip('%'))
                 if numeric_value < 5:
-                    return "red", "#ffcccc"  # Red text and light red background
-                return "green", "#ccffcc"  # Green text and light green background
+                    return "red", "#ffcccc"  
+                return "green", "#ccffcc" 
 
             with st.container():
-                st.subheader("General Information")
+                st.write("#")
+                st.subheader("📌 General Information ⚡")
+                st.markdown("***")
                 a, b, c = st.columns(3)
                 
                 a.markdown(f"""
@@ -186,7 +233,6 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
 
-            # Apply additional CSS to style the page
             st.markdown("""
                 <style>
                     div[data-testid="stMetricValue"] {
@@ -212,7 +258,9 @@ else:
                 """
             
             with st.container():
-                st.subheader("⚠️ Least Preferred Ingredients")
+                st.write("#")
+                st.subheader("⚠️ Least Preferred Ingredients 🚫")
+                st.markdown("***")
                 d, e, f, g, h, i, j = st.columns(7)
 
                 with d:
@@ -301,7 +349,9 @@ else:
                     )
 
             with st.container():
-                st.subheader("✅ Most Preferred Ingredients")
+                st.write("#")
+                st.subheader("✅ Most Preferred Ingredients 🎖")
+                st.markdown("***")
                 k, l, m, n, o, p, q = st.columns(7)
 
                 with k:
@@ -390,7 +440,7 @@ else:
                     )
                     
             def convert_to_float(value):
-                """Convert a percentage string (e.g., '15%') to a float."""
+                # Convert a percentage string (e.g., '15%') to a float.
                 try:
                     return float(value.strip('%')) if value not in [None, ""] else 0
                 except ValueError:
@@ -413,38 +463,40 @@ else:
             df = pd.DataFrame(data)
             df["Daily Value (%)"] = df["Daily Value (%)"].apply(convert_to_float)
 
-            st.subheader("Nutrient Daily Value (%) Chart")
-            st.bar_chart(data=df.set_index("Nutrient")["Daily Value (%)"])
+            st.write("#")
+            st.subheader("📉 Nutrition Daily Values (%)📊")
+            st.markdown("***")
 
+            fig = px.bar(df,
+             x="Daily Value (%)",
+             y="Nutrient",
+             orientation='h',
+             color="Daily Value (%)",  
+             color_continuous_scale="Inferno", 
+             labels={"Daily Value (%) ": "Daily Values (%)", "Nutrient": "Nutrient"},
+             text="Daily Value (%)")  
+
+            fig.update_layout(
+                showlegend=False, 
+                xaxis_title="",
+                yaxis_title="",
+                plot_bgcolor='white', 
+                xaxis=dict(showgrid=False),  
+                yaxis=dict(showgrid=False),
+            )
+            st.plotly_chart(fig)
+
+            st.subheader("📉 Nutrition Information Table 📊")
+            st.markdown("***")
+            
             st.dataframe(nutrition_info) 
 
         else:
             st.error("Failed to fetch data from the database or no entries available.")
 
-    with tab2:
-        st.header("Upload a Food Label Image")
-
-        uploaded_file = st.file_uploader("Upload a Food Label", type=["jpg", "png", "pdf"])
-
-        if uploaded_file is not None:
-            st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
-
-            with st.spinner("Processing the file..."):
-                result, status = upload_document(uploaded_file)
-
-            if status == 200:
-                st.success("File uploaded and processed successfully!") 
-
-                new_data, new_status = fetch_database_entries()
-                if new_status == 200:
-                    st.session_state.nutrition_data = new_data
-                    st.session_state.fetch_status = new_status
-            else:
-                st.error(f"Failed to upload or process the document: {result.get('message', '')}")
-
     with tab3:
-        st.header("Logout")
-        st.write("Click the button below to log out:")
+        st.header("🔒 Logout")
+        st.write("Click the button below to logout.")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.email = None

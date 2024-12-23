@@ -1,19 +1,15 @@
--- Create FoodLabels database
-CREATE DATABASE IF NOT EXISTS FoodLabels;
+CREATE DATABASE FoodLabels_db;
 
--- Use the created database
-USE FoodLabels;
+USE FoodLabels_db;
 
--- Create User table
-CREATE TABLE IF NOT EXISTS User (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email VARCHAR(100) NOT NULL UNIQUE,
+CREATE TABLE User (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(200) NOT NULL
 );
 
--- Create Nutrition table
-CREATE TABLE IF NOT EXISTS Nutrition (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE Nutrition (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     servings_size VARCHAR(100),
     servings_per_container VARCHAR(100),
     calories_per_serving VARCHAR(100),
