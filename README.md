@@ -4,6 +4,7 @@ This streamlit based web app allows users to upload a food label image and extra
 ## Features
 - **User Authentication**: Allows user accounts with email and hashed passwords.
 - **Image Upload**: Users can upload food label images.
+- **Crop Nutrition Section**: Detect nutritian section in food label and crop that section.
 - **Text Extraction**: Extract text from food labels using PaddleOCR.
 - **Information Parsing**: Extract serving size, calories, and nutritional information from text using Regex and Fuzzy matching.
 - **Streamlit Interface**: A user-friendly front-end for uploading images and viewing extracted information.
@@ -12,6 +13,7 @@ This streamlit based web app allows users to upload a food label image and extra
 ## Project Structure
 - **app.py**: Flask backend for handling API requests and managing server-side logic.
 - **ocr.py**: Extracts text using PaddleOCR and then extracts serving size, calories, and nutritional information using Regex and Fuzzy matching.
+- **label_detection.py**: Using inference_sdk detect nutritian section in food label and crop that section..
 - **streamlit.py**: Streamlit front-end for the user interface, allowing users to upload images and view extracted information.
 - **database.sql**: SQL query to create the database and tables for storing user and nutritional information.
 
@@ -66,6 +68,13 @@ python app.py
 
 ```bash
 streamlit run streamlit.py
+```
+
+## credits
+
+Model used for label_detection
+```
+https://universe.roboflow.com/lizazaza/nutrition-table
 ```
 
 ## License
