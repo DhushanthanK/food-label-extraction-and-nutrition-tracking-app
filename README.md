@@ -1,6 +1,9 @@
 # food-label-extraction-and-nutrition-tracking-app
 This streamlit based web app allows users to upload a food label image and extract text using PaddleOCR and then extract serving, calories and nutrition information using Regex and Fuzzy matching.
 
+https://github.com/user-attachments/assets/726d8541-5ccf-4f60-ac43-fa01c9e72ad4
+
+
 ## Features
 - **User Authentication**: Allows user accounts with email and hashed passwords.
 - **Image Upload**: Users can upload food label images.
